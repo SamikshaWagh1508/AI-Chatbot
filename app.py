@@ -241,7 +241,7 @@ def chat():
         conversation_text = f"{date_info}\n\n" + "\n".join(current_conversation)
         
         response = client.models.generate_content(
-            model="models/gemini-1.5-flash-001",
+            model="models/gemini-2.5-flash",
             contents=conversation_text
         )
         
