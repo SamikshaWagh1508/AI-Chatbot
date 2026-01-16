@@ -221,7 +221,7 @@ def chat():
         
         # Get AI response
         response = client.models.generate_content(
-            model="models/gemini-3-flash-preview",
+            model="models/gemini-2.5-flash",
             contents=conversation_text
         )
         
