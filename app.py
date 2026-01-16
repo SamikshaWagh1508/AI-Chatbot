@@ -27,14 +27,14 @@ else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chatbot.db'
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 3600,
+}
 
 db = SQLAlchemy(app)
-with app.app_context():
-    db.create_all()
-
 
 api_key = os.getenv("GOOGLE_API_KEY")
-
 client = genai.Client(api_key=api_key)
 
 current_conversation = []
@@ -353,6 +353,10 @@ def delete_conversation(conv_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+with app.app_context():
+    db.create_all()
 
 
 if __name__ == "__main__":
