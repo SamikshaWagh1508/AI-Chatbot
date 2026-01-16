@@ -25,14 +25,18 @@ if database_url:
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 3600,
+        'connect_args': {
+            'connect_timeout': 10,
+        }
+    }
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chatbot.db'
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {}
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_pre_ping': True,
-    'pool_recycle': 3600,
-}
 
 db = SQLAlchemy(app)
 
@@ -137,22 +141,28 @@ def register():
             if password != confirm_password:
                 return jsonify({"success": False, "error": "Passwords do not match"}), 400
             
-            if User.query.filter_by(username=username).first():
+            existing_user = User.query.filter_by(username=username).first()
+            if existing_user:
                 return jsonify({"success": False, "error": "Username already exists"}), 400
             
-            if User.query.filter_by(email=email).first():
+            existing_email = User.query.filter_by(email=email).first()
+            if existing_email:
                 return jsonify({"success": False, "error": "Email already exists"}), 400
             
             hashed_password = generate_password_hash(password)
             new_user = User(username=username, email=email, password=hashed_password)
             
             db.session.add(new_user)
+            db.session.flush()
             db.session.commit()
+            
+            print(f"User registered: {username}")
             
             return jsonify({"success": True, "message": "Registration successful! Please login."})
         
         except Exception as e:
             db.session.rollback()
+            print(f"Registration error: {str(e)}")
             return jsonify({"success": False, "error": str(e)}), 500
     
     return render_template("register.html")
@@ -169,17 +179,35 @@ def login():
             if not username or not password:
                 return jsonify({"success": False, "error": "Username and password required"}), 400
             
+            print(f"Login attempt for username: {username}")
+            
             user = User.query.filter_by(username=username).first()
             
-            if not user or not check_password_hash(user.password, password):
+            if user is None:
+                print(f"User not found: {username}")
+                all_users = User.query.all()
+                print(f"Total users in database: {len(all_users)}")
+                return jsonify({"success": False, "error": "Invalid username or password"}), 401
+            
+            print(f"User found: {user.username}")
+            
+            password_valid = check_password_hash(user.password, password)
+            
+            if not password_valid:
+                print(f"Password incorrect for user: {username}")
                 return jsonify({"success": False, "error": "Invalid username or password"}), 401
             
             session['user_id'] = user.id
             session['username'] = user.username
             
+            print(f"Login successful for: {username}")
+            
             return jsonify({"success": True, "message": "Login successful!"})
         
         except Exception as e:
+            print(f"Login error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
     
     return render_template("login.html")
@@ -357,6 +385,57 @@ def delete_conversation(conv_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/debug-users", methods=["GET"])
+def debug_users():
+    try:
+        all_users = User.query.all()
+        user_list = []
+        for u in all_users:
+            user_list.append({
+                "id": u.id,
+                "username": u.username,
+                "email": u.email,
+                "password_hash": u.password[:20] + "..." if len(u.password) > 20 else u.password,
+                "created_at": str(u.created_at)
+            })
+        
+        return jsonify({
+            "total_users": len(all_users),
+            "users": user_list,
+            "database_uri": app.config['SQLALCHEMY_DATABASE_URI'][:50] + "..."
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/test-password", methods=["POST"])
+def test_password():
+    try:
+        data = request.get_json()
+        username = data.get("username")
+        password = data.get("password")
+        
+        user = User.query.filter_by(username=username).first()
+        
+        if not user:
+            return jsonify({"success": False, "error": "User not found"})
+        
+        is_valid = check_password_hash(user.password, password)
+        
+        return jsonify({
+            "username": username,
+            "password_entered": password,
+            "stored_hash": user.password[:30] + "...",
+            "password_matches": is_valid
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 with app.app_context():
