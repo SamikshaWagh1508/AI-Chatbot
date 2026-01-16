@@ -20,6 +20,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///chatbot.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
+with app.app_context():
+    db.create_all()
+
 
 
 api_key = os.getenv("GOOGLE_API_KEY")
@@ -376,15 +379,10 @@ def delete_conversation(conv_id):
 
 # ==================== DATABASE INITIALIZATION ====================
 
-def init_db():
-    """Initialize database"""
-    with app.app_context():
-        db.create_all()
-        print("✅ Database initialized successfully!")
+
 
 
 if __name__ == "__main__":
-    # Initialize database on startup
-    init_db()
+    
     
     app.run(debug=True, host="0.0.0.0", port=5000)
