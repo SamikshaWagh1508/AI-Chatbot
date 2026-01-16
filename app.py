@@ -1,5 +1,7 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 import os
 from dotenv import load_dotenv
 from google import genai
@@ -41,16 +43,15 @@ current_conversation = []
 
 
 class User(db.Model):
-    
     __tablename__ = 'users'
     
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    password: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     
-    conversations = db.relationship('Conversation', backref='user', lazy=True, cascade='all, delete-orphan')
+    conversations: Mapped[list] = relationship('Conversation', back_populates='user', cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<User {self.username}>'
@@ -59,13 +60,14 @@ class User(db.Model):
 class Conversation(db.Model):
     __tablename__ = 'conversations'
     
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    title = db.Column(db.String(255), default='Untitled')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), default='Untitled')
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    messages = db.relationship('Message', backref='conversation', lazy=True, cascade='all, delete-orphan')
+    user: Mapped['User'] = relationship('User', back_populates='conversations')
+    messages: Mapped[list] = relationship('Message', back_populates='conversation', cascade='all, delete-orphan')
     
     def __repr__(self):
         return f'<Conversation {self.title}>'
@@ -74,11 +76,13 @@ class Conversation(db.Model):
 class Message(db.Model):
     __tablename__ = 'messages'
     
-    id = db.Column(db.Integer, primary_key=True)
-    conversation_id = db.Column(db.Integer, db.ForeignKey('conversations.id'), nullable=False)
-    user_message = db.Column(db.Text, nullable=False)
-    bot_response = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    conversation_id: Mapped[int] = mapped_column(Integer, ForeignKey('conversations.id'), nullable=False)
+    user_message: Mapped[str] = mapped_column(Text, nullable=False)
+    bot_response: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    
+    conversation: Mapped['Conversation'] = relationship('Conversation', back_populates='messages')
     
     def __repr__(self):
         return f'<Message {self.id}>'
